@@ -7,6 +7,15 @@ from torch.autograd import Variable
 import math
 from collections import OrderedDict
 
+class LambdaLR():
+    def __init__(self, n_epochs, offset, decay_start_epoch):
+        assert ((n_epochs - decay_start_epoch) > 0), "Decay must start before the training session ends!"
+        self.n_epochs = n_epochs
+        self.offset = offset
+        self.decay_start_epoch = decay_start_epoch
+
+    def step(self, epoch):
+        return 1.0 - max(0, epoch + self.offset - self.decay_start_epoch)/(self.n_epochs - self.decay_start_epoch)
 
 def weights_init_normal(m):
     classname = m.__class__.__name__
@@ -39,13 +48,20 @@ class ResidualBlock(nn.Module):
         return x + self.conv_block(x)
 
 class GeneratorResNet(nn.Module):
-    def __init__(self, in_channels=3, out_channels=3, res_blocks=4):
+    def __init__(self, in_channels=1, out_channels=1, dim=64, batch_size=20, res_blocks=4):
         super(GeneratorResNet, self).__init__()
 
         # Initial convolution block             --> change in/out size
-        model = [   nn.ReflectionPad2d(3),
+        #self.init_model = [ nn.Linear(in_channels,4*4*dim*16), nn.BatchNorm2d(4*4*dim*16), nn.ReLU(inplace=True)]
+        #self.init_model = [ nn.Linear(in_channels,64), nn.BatchNorm2d(64), nn.ReLU(inplace=True)]
+        model = [
+            nn.Conv2d( 1, 32, 5, stride=2, padding=1),
+            nn.BatchNorm2d(32),
+            nn.ReLU(inplace=True)
+        ]
+        '''model = [   nn.ReflectionPad2d(3),
                     nn.Conv2d(in_channels, 64, 7),
-                    nn.InstanceNorm2d(64),
+                    nn.BatchNorm2d(64),
                     nn.ReLU(inplace=True) ]
 
         # Downsampling
@@ -61,25 +77,41 @@ class GeneratorResNet(nn.Module):
         # Residual blocks
         for _ in range(res_blocks):
             model += [ResidualBlock(in_features)]
+        
+        # Upsampling
+        out_features = in_features//2
+        '''
+        # Downsampling
+        in_features = 32
+        out_features = in_features*2
+        for _ in range(2):
+            model += [  nn.ConvTranspose2d(in_features, out_features, 5, stride=2, padding=1, output_padding=1),
+                        nn.BatchNorm2d(out_features),
+                        nn.ReLU(inplace=True) ]
+            in_features = out_features
+            out_features = in_features*2
 
         # Upsampling
         out_features = in_features//2
         for _ in range(2):
-            model += [  nn.ConvTranspose2d(in_features, out_features, 3, stride=2, padding=1, output_padding=1),
-                        nn.InstanceNorm2d(out_features),
+            model += [  nn.ConvTranspose2d(in_features, out_features, 5, stride=2, padding=1, output_padding=1),
+                        nn.BatchNorm2d(out_features),
                         nn.ReLU(inplace=True) ]
             in_features = out_features
             out_features = in_features//2
-
         # Output layer
-        model += [  nn.ReflectionPad2d(3),
+        '''model += [  nn.ReflectionPad2d(3),
                     nn.Conv2d(64, out_channels, 7),
                     nn.InstanceNorm2d(64),
-                    nn.ReLU(inplace=True)]
+                    nn.ReLU(inplace=True)]'''
+        model += [  nn.Conv2d(in_features, 1, 5, stride=2, padding=1),
+                    nn.Tanh() ]
 
         self.model = nn.Sequential(*model)
 
     def forward(self, x):
+        x = self.init_model(x)
+        #x = x.view([batch_size, 4, 4, dim*16])
         return self.model(x)
 
 ##############################
@@ -87,27 +119,40 @@ class GeneratorResNet(nn.Module):
 ##############################
 
 class Discriminator(nn.Module):
-    def __init__(self, in_channels=3):
+    def __init__(self, in_channels=1, labels="abc"):
         super(Discriminator, self).__init__()
 
         def discriminator_block(in_filters, out_filters, normalize=True):
             """Returns downsampling layers of each discriminator block"""
-            layers = [nn.Conv2d(in_filters, out_filters, 4, stride=2, padding=1)]
+            layers = [nn.Conv2d(in_filters, out_filters, 5, stride=2, padding=1)]
             if normalize:
-                layers.append(nn.InstanceNorm2d(out_filters))
+                layers.append(nn.BatchNorm2d(out_filters))
             layers.append(nn.LeakyReLU(0.2, inplace=True))
             return layers
-
-        self.model = nn.Sequential(
+        
+        '''self.model = nn.Sequential(
             *discriminator_block(in_channels, 8, normalize=False),
             *discriminator_block(8, 16),
             *discriminator_block(16, 32),
             nn.ZeroPad2d((1, 0, 1)),
             nn.Conv2d(32, 1, 4, padding=1)
+        )'''
+        num_classes = len(labels)
+        self.model = nn.Sequential(
+            *discriminator_block(in_channels, 64, normalize=False),
+            *discriminator_block(64, 128),
+            *discriminator_block(128, 256),
+            *discriminator_block(256, 512),
+            *discriminator_block(512, 1024),
+            #nn.ZeroPad2d((1, 0, 1)),
+            nn.Linear(1024, num_classes, bias=False),
+            nn.Softmax()
         )
+        return x
 
-    def forward(self, img):
-        return self.model(img)
+    def forward(self, wav):
+        self.model = self.model.transpose(0,1)
+        return self.model(wav)
 
 
 ##############################

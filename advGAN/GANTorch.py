@@ -27,7 +27,7 @@ parser.add_argument('--n_epochs', type=int, default=200, help='number of epochs 
 parser.add_argument('--dataset_name', type=str, default='TIMIT', help='name of dataset')
 parser.add_argument('--dataset_train', type=str, default="TIMIT/", help='path of the training dataset')
 parser.add_argument('--dataset_test', type=str, default="TIMIT/", help='path of the testing dataset')
-parser.add_argument('--batch_size', type=int, default=128, help='size of the batches')
+parser.add_argument('--batch_size', type=int, default=20, help='size of the batches')
 parser.add_argument('--lr', type=float, default=0.0001, help='adam: learning rate')
 parser.add_argument('--b1', type=float, default=0.5, help='adam: decay of first order momentum of gradient')
 parser.add_argument('--b2', type=float, default=0.999, help='adam: decay of first order momentum of gradient')
@@ -59,9 +59,20 @@ cuda = True if torch.cuda.is_available() else False
 # Calculate output of image discriminator (PatchGAN)
 #patch = (1, opt.img_height // 2**4, opt.img_width // 2**4)
 
+# Training data loader      TODO!!!  
+labels = DeepSpeech.get_labels(model)
+audio_conf = DeepSpeech.get_audio_conf(model)  
+AudioDataset_train = SpectrogramDataset(audio_conf=audio_conf, manifest_filepath=opt.dataset_train, labels=labels, normalize=True)
+AudioDataset_test = SpectrogramDataset(audio_conf=audio_conf, manifest_filepath=opt.dataset_test, labels=labels, normalize=True)
+train_dataloader = AudioDataLoader(AudioDataset_train, batch_size=opt.batch_size, num_workers=opt.n_cpu)
+# Test data loader
+val_dataloader = AudioDataLoader(AudioDataset_test, batch_size=opt.batch_size, num_workers=1)
+
+
+
 # Initialize generator and discriminator and model
-G = GeneratorResNet(res_blocks=opt.n_residual_blocks)
-D = Discriminator()
+G = GeneratorResNet(batch_size=batch_size, res_blocks=opt.n_residual_blocks)
+D = Discriminator(labels=labels)
 model = DeepSpeech.load_model(opt.model_path, cuda=cuda)
 
 if cuda:
@@ -101,15 +112,6 @@ Tensor = torch.cuda.FloatTensor if cuda else torch.Tensor
                 transforms.ToTensor(),
                 transforms.Normalize((0.5,0.5,0.5), (0.5,0.5,0.5)) ]'''
 
-# Training data loader      TODO!!!  
-labels = DeepSpeech.get_labels(model)
-audio_conf = DeepSpeech.get_audio_conf(model)  
-AudioDataset_train = SpectrogramDataset(audio_conf=audio_conf, manifest_filepath=opt.dataset_train, labels=labels, normalize=True)
-AudioDataset_test = SpectrogramDataset(audio_conf=audio_conf, manifest_filepath=opt.dataset_test, labels=labels, normalize=True)
-train_dataloader = AudioDataLoader(AudioDataset_train, batch_size=opt.batch_size, num_workers=opt.n_cpu)
-# Test data loader
-val_dataloader = AudioDataLoader(AudioDataset_test, batch_size=opt.batch_size, num_workers=1)
-
 
 def sample_audios(batches_done):            # do i need this?
     """Saves a generated sample from the test set"""
@@ -148,17 +150,17 @@ for epoch in range(opt.epoch, opt.n_epochs):
         optimizer_G.zero_grad()
 
         # Adv loss
-        fake_noise = G(real_data)
-        fake_data = fake_noise + real_data
+        fake_data = G(real_data)
+        #fake_data = fake_noise + real_data
         loss_adv = criterion_Adv(fake_data, valid)
 
         # GAN loss
-        loss_GAN = criterion_GAN(D(real_data), D(fake_data))
+        loss_GAN = criterion_GAN(model(real_data), model(fake_data))
 
         # hinge loss
-        loss_hinge = criterion_hinge(fake_noise, opt.bound_noise)
+        #loss_hinge = criterion_hinge(fake_noise, opt.bound_noise)
 
-        loss_G = loss_adv + lambda_gan*loss_GAN + lambda_hinge*loss_hinge
+        loss_G = loss_adv + lambda_gan*loss_GAN #+ lambda_hinge*loss_hinge
         loss_G.backward()
         optimizer_G.step()
 

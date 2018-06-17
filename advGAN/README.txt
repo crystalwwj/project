@@ -1,11 +1,18 @@
 ------------README------------
-command: python GANTorch.py --dataset_train 'path_to train set' --dataset_test 'path to test set' --model_path 'path to store model'
+command: python GANTorch_wave.py --dataset_train 'path_to train set' --dataset_test 'path to test set' --model_path 'path to store model'
 
  1. file structure
     advGAN/
+    ## older versions using spectrogram in / spectrogram out ##
     advGAN/GANTorch.py          --> main process and training
     advGAN/model.py             --> generator, discriminator, DeepSpeech models
     advGAN/dataloader.py        --> audio data loader for training and testing dataset
+    
+    ## current version using audio(.wav) in / audio out ##
+    advGAN/GANTorch_wave.py     --> main process and training
+    advGAN/model_wave.py        --> generator, discriminator, DeepSpeech models
+    advGAN/dataloader_wave.py   --> audio data loader for training and testing dataset
+    advGAN/decoder.py		—-> decoder for deepspeech outputs (viewing transcripts)
 
 2.  parser arguments
     epoch                       --> start from which epoch? 0 if from scratch       (default = 0)                
@@ -21,7 +28,6 @@ command: python GANTorch.py --dataset_train 'path_to train set' --dataset_test '
     n_cpu                       --> number of cpu threads to use                    (default = 4)
     sample_interval             --> interval to create generated adversarial example(default = 10)
     checkpoint_interval         --> interval to save checkpoint models              (default = 50)
-    n_residual_blocks           --> number of residual blocks in generator          (default = 4)
     bound_noise                 --> user-specified bound of perturbation magnitude  (default = 0.05)
     model_path                  --> path to target model, ex: DeepSpeech            (default = 'deepspeech_final.pth')
 
@@ -35,7 +41,7 @@ command: python GANTorch.py --dataset_train 'path_to train set' --dataset_test '
     sample_interval, checkpoint_interval
 
     *** don't change ***
-    b1, b2, n_cpu, n_residual_blocks
+    b1, b2, n_cpu
 
 3. results
     - generated adversarial examples will be under 'audios/TIMIT/', the filename indicating the number of batches done

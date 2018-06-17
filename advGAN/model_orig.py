@@ -50,55 +50,42 @@ class ResidualBlock(nn.Module):
 class GeneratorResNet(nn.Module):
     def __init__(self, in_channels=1, out_channels=1, dim=64, batch_size=20, res_blocks=4):
         super(GeneratorResNet, self).__init__()
-
-        # Initial convolution block             --> change in/out size
-        #self.init_model = [ nn.Linear(in_channels,4*4*dim*16), nn.BatchNorm2d(4*4*dim*16), nn.ReLU(inplace=True)]
-        #self.init_model = nn.Sequential( nn.Linear(in_channels,64), nn.BatchNorm2d(64), nn.ReLU(inplace=True) )
-        #model = model.view([batch_size, 4, 4, dim*16]) 
-        model = [   nn.Conv2d(1,32,5, stride=1, padding=(1,1)),
-                    nn.BatchNorm2d(32),
-                    nn.ReLU(inplace=True),
-                    nn.Conv2d(32,32,5, stride=2, padding=(1,1)),
-                    nn.BatchNorm2d(32),
-                    nn.ReLU(inplace=True)
-                ]
-        # Downsampling
-        in_features = 32
-        out_features = in_features*2
-        #model = []
-        for _ in range(2):
-            model += [  nn.Conv2d(in_features, out_features, 5, stride=2, padding=(1,0)),
-                        nn.BatchNorm2d(out_features),
-                        nn.ReLU(inplace=True) ]
-            in_features = out_features
-            out_features = in_features*2
-
-        # Upsampling
-        out_features = in_features//2
-        for _ in range(2):
-            model += [  nn.ConvTranspose2d(in_features, out_features, 5, stride=2, padding=(1,0)),
-                        nn.BatchNorm2d(out_features),
-                        nn.ReLU(inplace=True) ]
-            in_features = out_features
-            out_features = in_features//2
-
-        # Output layer
-        '''model += [  nn.ReflectionPad2d(3),
-                    nn.Conv2d(64, out_channels, 7),
-                    nn.InstanceNorm2d(64),
-                    nn.ReLU(inplace=True)]'''
-        model += [  nn.ConvTranspose2d(in_features,in_features, 5, stride=2, padding=(1,1)),
-                    nn.BatchNorm2d(in_features),
-                    nn.ReLU(),
-                    nn.ConvTranspose2d(in_features, 1, 5, stride=1, padding=(1,1)),
-                    nn.ReLU(inplace=True),
-                ]
+        ##TODO!!!!!
+        # input conv layer
+        model = [
+            nn.Conv2d(in_channels, 8, kernel_size=(3,3), stride=1),
+            nn.ReLU()       #batchnorm??
+        ]
+        # downsampling blocks
+        model += [
+            nn.Conv2d(8, 16, kernel_size=(3,3), stride=2),
+            nn.BatchNorm2d(16),
+            nn.ReLU(),
+            nn.Conv2d(16, 32, kernel_size=(3,3), stride=2),
+            nn.BatchNorm2d(32),
+            nn.ReLU()
+        ]
+        # residual blocks
+        for i in range(4):
+            model += [ResidualBlock(32)]
+        # upsampling blocks
+        model += [
+            nn.ConvTranspose2d(32, 16, kernel_size=(3,3), stride=2),
+            nn.BatchNorm2d(16),
+            nn.ReLU(),
+            nn.ConvTranspose2d(16, 8, kernel_size=(3,3), stride=2),
+            nn.BatchNorm2d(8),
+            nn.ReLU()
+        ]
+        # output conv layer
+        model += [
+            nn.Conv2d(8, out_channels, kernel_size=(3,3), stride=1),
+            nn.ReLU()       #batchnorm??
+        ]
 
         self.model = nn.Sequential(*model)
 
     def forward(self, x):
-        #x = self.init_model(x)
-        #x = x.view([batch_size, 4, 4, dim*16])
         return self.model(x)
 
 ##############################
@@ -108,7 +95,7 @@ class GeneratorResNet(nn.Module):
 class Discriminator(nn.Module):
     def __init__(self, in_channels=1, labels="abc"):
         super(Discriminator, self).__init__()
-
+        '''
         def discriminator_block(in_filters, out_filters, normalize=True):
             """Returns downsampling layers of each discriminator block"""
             layers = [nn.Conv2d(in_filters, out_filters, 5, stride=2, padding=1)]
@@ -123,39 +110,22 @@ class Discriminator(nn.Module):
                 layers.append(nn.BatchNorm2d(out_filters))
             layers.append(nn.LeakyReLU(0.2, inplace=True))
             return layers
-
-        '''self.model = nn.Sequential(
-            *discriminator_block(in_channels, 8, normalize=False),
-            *discriminator_block(8, 16),
-            *discriminator_block(16, 32),
-            nn.ZeroPad2d((1, 0, 1)),
-            nn.Conv2d(32, 1, 4, padding=1)
-        )'''
-        ## change kernel->25, stride->4 ??
-        num_classes = len(labels)
-        self.model = nn.Sequential(
-            *discriminator_block(in_channels, 32, normalize=False),
-            *discriminator_block(32, 64),
-            *sampling_block(64,128),
-            *sampling_block(128,256),
-            *sampling_block(256,128),
-            *sampling_block(128,64),
-            *discriminator_block(64, 32),
-            nn.Conv2d(32,1,5,stride=2,padding=3),
-            nn.ReLU(inplace=True)
-            #nn.ZeroPad2d((1, 0, 1)),
-            #nn.Linear(512, num_classes, bias=False)
-            #nn.Softmax()
-        )
-        #self.fc = nn.Sequential(SequenceWise(nn.Linear(512,num_classes, bias=False)))
-        # return x
+        '''
+#TODO!!!!
+        model = [ 
+            nn.Conv2d(in_channels, 8, kernel_size=(3,3), stride=1),     #input layer (c8)
+            nn.LeakyReLU(negative_slope=0.2),
+            nn.Conv2d(8, 16, kernel_size=(3,3), stride=1),              #c16 layer
+            nn.BatchNorm2d(16),
+            nn.LeakyReLU(negative_slope=0.2),
+            nn.Conv2d(16, 32, kernel_size=(3,3), stride=1),             #c32 layer
+            nn.BatchNorm2d(32),
+            nn.LeakyReLU(negative_slope=0.2),       # output layer
+            nn.Linear(32,1),  # reshape/flatten
+            nn.Sigmoid()
+        ]
 
     def forward(self, wav):
-        #self.model = self.model.transpose(0,1)
-        #x = self.model(wav)
-        #x = self.fc(x)
-        #x = x.transpose(0,1)
-        #x = nn.Softmax(x)
         return self.model(wav)
 
 

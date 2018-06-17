@@ -1,0 +1,1 @@
+python3 GANTorch.py --dataset_train '/home/hung/deepspeech.pytorch/data/timit_train.csv' --dataset_test '/home/hung/deepspeech.pytorch/data/timit_valid.csv' --model_path '/home/hung/deepspeech.pytorch/models/librispeech_pretrained.pth'

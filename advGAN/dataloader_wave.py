@@ -79,6 +79,7 @@ class audioDataset(Dataset):
         audio_path, transcript_path = sample[0], sample[1]
         print('audio:' , audio_path, 'transcript:' , transcript_path)
         audio = self.get_audio(audio_path)
+        audio = audio.unsqueeze(0)
         with open(transcript_path, 'r', encoding='utf8') as transcript_file:
             transcript = transcript_file.read().replace('\n', '')
         return audio, transcript

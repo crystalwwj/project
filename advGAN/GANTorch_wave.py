@@ -54,10 +54,10 @@ audio_conf = DeepSpeech.get_audio_conf(model)
 decoder = GreedyDecoder(labels, blank_index=labels.index('_'))
 
 train_dataset = audioDataset(filepath=opt.dataset_train, audio_conf=audio_conf)
-train_dataloader = audioLoader(train_dataset, batch_size=opt.batch_size, num_workers=opt.n_cpu)
+#train_dataloader = audioLoader(train_dataset, batch_size=opt.batch_size, num_workers=opt.n_cpu)
 
 test_dataset = audioDataset(filepath=opt.dataset_test, audio_conf=audio_conf)
-test_dataloader = audioLoader(test_dataset, batch_size=opt.batch_size, num_workers=opt.n_cpu, shuffle=True)
+#test_dataloader = audioLoader(test_dataset, batch_size=opt.batch_size, num_workers=opt.n_cpu, shuffle=True)
 
 G = Generator()         # give i/o dimensions: input = 2**16 = [65536], output = 2**16 = [65536]
 D = Discriminator()     # give i/o dimensions: input = 2**16 = [65536], output = [batch_size, 1024]
@@ -100,12 +100,14 @@ def reconstruct(audio, path, rate):
     wav.write(path, rate, audio_np)
 
 
-def sample_audios(test_ds_iter,epoch,batches_done, rate):
-    wavs, trans= next(test_ds_iter)
+def sample_audios(test_ds,epoch,index, rate): #batches_done
+    #wavs, trans= next(test_ds_iter)
+    wavs, trans = test_ds[index]
     real = Variable(wavs, requires_grad=False).cuda()          #BUGGY LINE
     fake = G(real)
     fake_data = fake + real
-    path = '%s/audio/%s/test_%d_%d.wav' % (opt.output_path, opt.dataset_name, epoch, batches_done)
+    #path = '%s/audio/%s/test_%d_%d.wav' % (opt.output_path, opt.dataset_name, epoch, batches_done)
+    path = '%s/audio/%s/test_%d_%d.wav' % (opt.output_path, opt.dataset_name, epoch, index)
     reconstruct(fake_data, path, rate)
     return fake_data, trans
    
@@ -116,11 +118,14 @@ def sample_audios(test_ds_iter,epoch,batches_done, rate):
 
 prev_time = time.time()
 for epoch in range(opt.epoch, opt.n_epochs):
-    test_set_iter = iter(test_dataloader)
-    for i, (batch) in enumerate(train_dataloader):
-        audio,transcript = batch
+    #test_set_iter = iter(test_dataloader)
+    for i in range(len(train_dataset)):
+    #for i, (batch) in enumerate(train_dataloader):
+        audio,transcript = train_dataset[i]
+        #audio,transcript = batch
         
-        batch_size = len(audio)
+        #batch_size = len(audio)
+        batch_size = opt.batch_size
 
         real_data = Variable(audio, requires_grad=False).cuda()
         # Adversarial ground truths       
@@ -184,13 +189,15 @@ for epoch in range(opt.epoch, opt.n_epochs):
         # --------------
 
         # Determine approximate time left
-        batches_done = epoch * len(train_dataloader) + i
-        batches_left = opt.n_epochs * len(train_dataloader) - batches_done
+        #batches_done = epoch * len(train_dataloader) + i
+        batches_done = epoch * len(train_dataset) + i
+        #batches_left = opt.n_epochs * len(train_dataloader) - batches_done
+        batches_left = opt.n_epochs * len(train_dataset) - batches_done
         time_left = datetime.timedelta(seconds=batches_left * (time.time() - prev_time))
         prev_time = time.time()
 
         # Print log
-        if batches_done % opt.checkpoint_interval/5 == 0:
+        if batches_done % opt.checkpoint_interval == 0:
             transcript = ''.join(transcript)
             orig_trans = ''.join(''.join(ch) for ch in orig_trans[0])
             gen_trans = ''.join(''.join(ch) for ch in generated_trans[0])
@@ -198,7 +205,7 @@ for epoch in range(opt.epoch, opt.n_epochs):
         
         sys.stdout.write("[Epoch %d/%d] [Batch %d/%d] \n[D loss: %f] [G loss: %f, gan: %f, adv: %f, hinge: %f] ETA: %s\n" %
                                                         (epoch, opt.n_epochs,
-                                                        i, len(train_dataloader),
+                                                        i, len(train_dataset), #dataloader
                                                         loss_D.item(), loss_G.item(),
                                                         loss_GAN.item(), loss_Adv.item(),
                                                         loss_hinge.item(), time_left))
@@ -209,7 +216,7 @@ for epoch in range(opt.epoch, opt.n_epochs):
             rate = audio_conf['sample_rate']
             reconstruct(fake_data, path, rate)
         if batches_done % opt.sample_interval == 0:
-            test_out, test_trans = sample_audios(test_set_iter, epoch, batches_done, rate)
+            test_out, test_trans = sample_audios(test_dataset, epoch, int(batches_done / opt.sample_interval), rate)
             test_out = get_spectrogram(test_out, audio_conf)
             test_out = model(test_out)
             test_out = test_out.transpose(0,1)

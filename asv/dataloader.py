@@ -1,18 +1,20 @@
 # Dataloader
 import io
 import os
+import time
 import numpy as np
 import librosa
 import tensorflow as tf
 
 class Dataloader():
-    def __init__(self, file_dir=None, speaker_list=None, f_param=None):
+    def __init__(self, file_dir=None, speaker_list=None, f_param=None, thresh=None):
         self.file_dir = file_dir
         self.speakers = speaker_list
         self.sr = f_param[0]
         self.frame_size = f_param[1]
         self.frame_shift = f_param[2]
         self.batch_size = None
+        self.threshold = thresh
         self.waveset = []
         self.labelset = []
         self.real_count = 0
@@ -26,11 +28,16 @@ class Dataloader():
         try:
             with io.open(self.speakers, 'r', encoding='utf-8') as speaker_file:
                 print("Creating dataset!")
+                start_time = time.time()
                 speakers = speaker_file.readlines()
             for groundtruth in speakers:
                 #parse line into folder / filename / type(human or Sx) / (human or spoof)
                 tokens = groundtruth.split(' ')
                 wav_path = self.file_dir + '/' + tokens[0] + '/' + tokens[1] + '.wav'
+                
+                if tokens[3].strip() == 'human' and self.real_count > 0.3*self.threshold:
+                    continue
+
                 try:
                     data, sample_r = librosa.load(wav_path, offset=0.25 ,duration=3.0, sr=16000)
                     # discard if utterance < 3s
@@ -64,12 +71,16 @@ class Dataloader():
                             self.spoof_count += 1
                             #print('spoof_count:', self.spoof_count)
                         ##################################################################
-                        if len(self.waveset)>7000: break                            #temp
+                        if len(self.waveset)>self.threshold: break                        
+
                     except Exception as e:
                         print(e)
+            
             self.waveset = np.array(self.waveset)
             self.labelset = np.array(self.labelset)
+            end_time = time.time()
             print('Finished creating dataset, size of dataset:', len(self.waveset))
+            print("Time elapsed: {}".format(end_time-start_time))
             print('Human: {} Spoof: {}'.format(self.real_count, self.spoof_count))
 
         except:

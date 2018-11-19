@@ -32,23 +32,27 @@ class ASV():
         # set directory for different modes and create respective datasets
         if mode == 'train':
             s_list = os.path.join(self.datapath, 'CM_protocol/cm_train.trn')
+            t = 15000
         elif mode == 'dev':
             s_list = os.path.join(self.datapath, 'CM_protocol/cm_develop.ndx')
+            t = 10000
         elif mode == 'test':
             s_list = os.path.join(self.datapath, 'CM_protocol/cm_evaluation.ndx')
+            t = 10000
         else:
             print('Invalid mode! specify one of train, dev, test.')
-        DLoad = Dataloader(file_dir=os.path.join(self.datapath,'wav'), speaker_list=s_list, f_param=(self.sr, self.frame_size, self.frame_shift))
+        f = (self.sr, self.frame_size, self.frame_shift)
+        DLoad = Dataloader(file_dir=os.path.join(self.datapath,'wav'), speaker_list=s_list, f_param=f, thresh=t)
         DLoad.create_dataset()
         return DLoad
 
     def train(self):
-        log_file = open('training_model_shuffle.txt','w')
+        log_file = open('training_model_shuffle_test.txt','w')
         log_file.write("Training model....\n")
         print('========= Training model =========')
 
         #self.trainset = training_model.create_dataset('train')
-        self.trainset = self.create_dataset('dev')
+        self.trainset = self.create_dataset('test')
         assert self.trainset, "No training data given!"
 
         tf.reset_default_graph()
@@ -127,9 +131,9 @@ class ASV():
 
                 end_time = time.time()
                 log_file.write("Epoch:{}     Training loss:{}\n".format(epoch, total_loss/self.trainset.sample_size()))
-                log_file.write("Time elapsed: {}\n".format(end_time-start_time))
+                log_file.write("Time elapsed: {} min\n".format((end_time-start_time)/60))
                 print("Epoch:{}     Training loss:{}\n".format(epoch, total_loss/self.trainset.sample_size()))
-                print("Time elapsed: {}".format(end_time-start_time))
+                print("Time elapsed: {} min".format((end_time-start_time)/60))
             
             log_file.write('Finished training. Best loss: {}\n'.format(best[1]))
             log_file.close()
@@ -141,17 +145,17 @@ class ASV():
         pass
 
     def test(self, num_model):
-        log_file = open('testing_model_shuffle_{}.txt'.format(num_model),'w')
+        log_file = open('testing_model_shuffle_test_{}.txt'.format(num_model),'w')
         log_file.write("Testing model #{}....\n".format(num_model))
         print('========= Testing model =========')
 
-        self.testset = self.create_dataset('test')
+        self.testset = self.create_dataset('dev')
         assert self.testset, "No testing data given!"
         human_count, spoof_count = self.testset.get_count()
 
         tf.reset_default_graph()
         # utterance is a preprocesses 3D tensor with size [num_frames x 1 x 400]
-        utterance = tf.placeholder(shape=(self.testset.batch_size, 400), dtype=tf.float32)
+        utterance = tf.placeholder(shape=(self.testset.batch_size, self.frame_size), dtype=tf.float32)
         
         # create graph
         extracted_features = self.model.extractor(utterance)
@@ -215,7 +219,7 @@ class ASV():
             log_file.write('False negative {}%\n'.format(100 * false_spoof/human_count))   #false_neg = false_spoof/total_human
             log_file.write("Time elapsed: {}".format(end_time-start_time))
             print('Finished testing! Results for model #{}: true negative: {}'.format(num_model, true_spoof/spoof_count))
-            print("Time elapsed: {}".format(end_time-start_time))
+            print("Time elapsed: {} min".format((end_time-start_time)/60))
         
         log_file.close()
 
@@ -225,6 +229,5 @@ if __name__ == '__main__':
     training_model = ASV(params)
     #training_model.create_dataset('train')
     training_model.train()
-    model_list = [0,1,2,3]
-    for index in model_list:
+    for index in range(params.epoch):
         training_model.test(index)

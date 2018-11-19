@@ -12,7 +12,7 @@ class Model():
         # input: 1x400 (frame size) -> reshape(1x20x20) -> conv1 -> conv2 -> conv3 -> reshape(64x100)
         def conv_block(X, f, k, s):
             conv = tf.layers.conv2d(inputs=X, filters=f, kernel_size=k, strides=s, padding='same')
-            norm = tf.layers.batch_normalization(conv) # TODO: figure out this param
+            norm = tf.layers.batch_normalization(conv) 
             out  = tf.nn.relu(norm)
             return out
         print('Shape of utterance batch: ', data_batch.shape)
@@ -49,7 +49,7 @@ class Model():
         # input: 64-256 FC1 -> 256-256 FC2 -> 256-2 linear
         def fc_layer(X):
             dense = tf.layers.dense(inputs=X, units=256)
-            norm  = tf.layers.batch_normalization(dense, training=True)
+            norm  = tf.layers.batch_normalization(dense)#, training=True)
             out   = tf.nn.relu(norm)
             return out
         

@@ -28,15 +28,8 @@ model_arg.add_argument('--log_path', type=str, default='./logs', help="directory
 
 # Training Parameters
 train_arg = parser.add_argument_group('Training')
-train_arg.add_argument('--train', type=bool, default=False, help="train session or not(test session)")
 train_arg.add_argument('--loss', type=str, default='softmax', help="loss type (softmax or contrast)")
 train_arg.add_argument('--optim', type=str.lower, default='adam', help="optimizer type")
 train_arg.add_argument('--learning_rate', type=float, default=4e-3, help="learning rate")
-train_arg.add_argument('--beta1', type=float, default=0.5, help="beta1")
-train_arg.add_argument('--beta2', type=float, default=0.9, help="beta2")
 train_arg.add_argument('--epoch', type=int, default=4, help="max epoch")
 train_arg.add_argument('--early_stop', type=bool, default=False, help="use early stopping or not")
-train_arg.add_argument('--comment', type=str, default='', help="any comment")
-
-#config = get_config()
-#print(config)           # print all the arguments
